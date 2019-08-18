@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+	<link rel="stylesheet" 
+		href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+		integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" 
+		crossorigin="anonymous">
+	<script src="https://code.jquery.com/jquery-1.10.2.min.js"></script>
+	<script src="/socket.io/socket.io.js"></script>
+	<script>
+		var socket = io();
+	</script>
+	<style>
+		.row {
+			margin:20px;
+		}
+		
+		p {
+			font-size: 30px;
+		}
+		#gameArea{
+			display:none;
+		}
+	</style>
+	<title> Connect 5 </title>
+	<body>
+		<div class="container">
+			<div class="row" id="userArea">
+				<div class="col-md-4">
+					<form id="user-form">
+						<div class="form-group">
+							<label>Enter Username</label>
+							<input class="form-control" id="username"/>
+							<br/>
+							<input type="submit" class="btn btn-primary" value="Login" />
+						</div>
+					</form>
+				</div>
+			</div>
+			<!--game area holds game board and is hidden until user signs in-->
+			<div class="row" id="gameArea">
+				<div class="col-md-9" style="display:inline-block" >
+					<div class="row" id="gameBoard">
+					</div>
+					<div class="row">
+						<!--shows turn details for each player, html is updated on each players turn-->
+						<div id="turnDetails">
+						</div>
+						<div id="yourTurn">
+							<form id="nextMoveForm">
+								<label>Enter Column Choice from (1-9)</label>
+								<br/>
+								<input class="form-control" id="move" style="width:550px"/>
+								<input type="submit" class="btn btn-primary" value="Make Move" />
+							</form>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</body>
+	<script>
+		var $gameBoard = $('#gameBoard');
+		var $gameArea = $('#gameArea');
+		var $nextMoveForm = $('#nextMoveForm');
+		var $move = $('#move');
+		var $userArea = $('#userArea');
+		var $userForm = $('#user-form');
+		var $username = $('#username');
+		var $yourTurn = $('#yourTurn');
+		var $turnDetails = $('#turnDetails');
+		
+		//Regex used to check move value is a number
+		var moveCheck = new RegExp('[1-9]');
+		
+		//run when game begins to lay out fresh playing board
+		newGame();
+		
+		$nextMoveForm.submit(function(e){
+			e.preventDefault();
+			//check whether entered value is between 1-9
+			//if it is then it sends value to server
+			if(moveCheck.test($move.val()) == true && $move.val().length == 1){
+				socket.emit('new move',$move.val());
+				$move.val('');
+			//else throws error message
+			} else {
+				alert('Please enter value between 1-9');
+			}
+		});
+		
+		//users sign in and input in their username
+		$userForm.submit(function(e){
+			e.preventDefault();
+			socket.emit('new user', $username.val(), function(data){
+				if(data){
+					$userArea.hide();
+					$gameArea.show();
+				}
+			});
+			$username.val('');
+		});
+		
+		//when its a users turn, show them the input box so they can make their move
+		socket.on('your turn', function(data){
+			var html = '';
+			html += '<p>' + data + ', Please Enter Column Choice from (1-9) </p>';
+			$yourTurn.show();
+			$turnDetails.html(html);
+		});
+		
+		//when its not a users turn, hise input box and tell them they're waiting for other player
+		socket.on('not your turn', function(data){
+			var html = '';
+			html += '<p> Waiting on other player... </p>';
+			$yourTurn.hide();
+			$turnDetails.html(html);
+		});
+		
+		//when a new move is made, update game board using info given from the server
+		socket.on('get moves', function(data){
+			var html = '<p>';
+			for(i=0;i<data.length;i++){
+				for(j=0;j<data[0].length;j++){
+					if(data[i][j]==0){
+						html += ' [_] ';
+					}else if(data[i][j]==1){
+						html += ' [x] ';
+					}else if(data[i][j]==2){
+						html += ' [o] ';
+					}
+				}
+				html += '<br/>';
+			}
+			html += '</p>';
+			$gameBoard.html(html);
+		});
+		
+		//show alert box when player has won the game and reload tabs
+		socket.on('show win', function(data){
+			alert(data + ' has won the game');
+			location.reload(true);
+		});
+		
+		//show alert box when game is over and reload tabs
+		socket.on('game over', function(data){
+			alert('Game has ended.');
+			location.reload(true);
+		});
+		
+		//function runs if error occurs and displays error message revieved from server
+		socket.on('err', function(data){
+			alert(data.message);
+		});
+		
+		//sets up new game board
+		function newGame(){
+			var html = '<p>';
+			for(i=0;i<6;i++){
+				for(j=0;j<9;j++){
+					html += ' [_] ';
+				}
+				html += '<br/>';
+			}
+			html += '</p>';
+			$gameBoard.html(html);
+		}
+	</script>
+</html>
